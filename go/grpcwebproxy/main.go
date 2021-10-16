@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/tls"
 	"fmt"
 	"log"
 	"net"
@@ -8,9 +9,7 @@ import (
 	_ "net/http/pprof" // register in DefaultServerMux
 	"os"
 	"time"
-
-	"crypto/tls"
-
+	
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
 	grpc_logrus "github.com/grpc-ecosystem/go-grpc-middleware/logging/logrus"
 	grpc_prometheus "github.com/grpc-ecosystem/go-grpc-prometheus"
@@ -156,7 +155,12 @@ func buildServer(wrappedGrpc *grpcweb.WrappedGrpcServer) *http.Server {
 		WriteTimeout: *flagHttpMaxWriteTimeout,
 		ReadTimeout:  *flagHttpMaxReadTimeout,
 		Handler: http.HandlerFunc(func(resp http.ResponseWriter, req *http.Request) {
-			wrappedGrpc.ServeHTTP(resp, req)
+			switch req.URL.Path {
+			case "/", "/health":
+				_, _ = fmt.Fprintf(resp, "OK\n")
+			default:
+				wrappedGrpc.ServeHTTP(resp, req)
+			}
 		}),
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/base64"
 	"io"
+	"net"
 	"net/http"
 	"strings"
 	"time"
@@ -275,6 +276,21 @@ func hackIntoNormalGrpcRequest(req *http.Request) (*http.Request, bool) {
 		incomingContentType = grpcWebTextContentType
 	}
 	req.Header.Set("content-type", strings.Replace(contentType, incomingContentType, grpcContentType, 1))
+	if host, _, err := net.SplitHostPort(req.RemoteAddr); err == nil && len(host) > 0 {
+		userIP := net.ParseIP(host)
+		if userIP != nil {
+			values := strings.Split(req.Header.Get("x-forwarded-for"), ",")
+			data := make([]string, 0)
+			for _, val := range values {
+				val = strings.TrimSpace(val)
+				if len(val) > 0 {
+					data = append(data, val)
+				}
+			}
+			value := strings.Join(append(data, userIP.String()), ",")
+			req.Header.Set("x-forwarded-for", value)
+		}
+	}
 
 	// Remove content-length header since it represents http1.1 payload size, not the sum of the h2
 	// DATA frame payload lengths. https://http2.github.io/http2-spec/#malformed This effectively
